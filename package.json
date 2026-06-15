@@ -1,0 +1,35 @@
+{
+  "name": "alcohol-label-verification-app",
+  "version": "1.0.0",
+  "description": "AI-Powered Alcohol Label Verification System for TTB",
+  "private": true,
+  "scripts": {
+    "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm start\"",
+    "backend:dev": "cd backend && npm run dev",
+    "frontend:dev": "cd frontend && npm start",
+    "backend:build": "cd backend && npm run build",
+    "frontend:build": "cd frontend && npm run build",
+    "backend:test": "cd backend && npm test",
+    "frontend:test": "cd frontend && npm test",
+    "backend:lint": "cd backend && npm run lint",
+    "frontend:lint": "cd frontend && npm run lint",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up",
+    "docker:down": "docker-compose down"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.1"
+  },
+  "keywords": [
+    "TTB",
+    "alcohol",
+    "verification",
+    "compliance",
+    "label",
+    "OCR",
+    "Azure"
+  ],
+  "author": "Your Team",
+  "license": "MIT"
+}

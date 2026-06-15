@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+*.log
+.DS_Store
+.env
+.env.local
+.env.*.local
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.env.development
+.env.production
+.env
+.env.local
