@@ -15,3 +15,4 @@ build/
 .env.production
 .env
 .env.local
+.vercel

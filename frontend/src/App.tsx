@@ -6,7 +6,7 @@ import ResultsPage from './pages/ResultsPage';
 import './App.css';
 
 const App: React.FC = () => {
-  const [apiEndpoint] = useState(process.env.REACT_APP_API_URL || 'http://localhost:5001');
+  const [apiEndpoint] = useState(process.env.REACT_APP_API_URL || '');
 
   return (
     <Router>

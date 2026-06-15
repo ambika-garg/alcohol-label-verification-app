@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "AI-Powered Alcohol Label Verification System for TTB",
   "private": true,
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install",
     "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm start\"",
@@ -16,10 +19,21 @@
     "frontend:lint": "cd frontend && npm run lint",
     "docker:build": "docker-compose build",
     "docker:up": "docker-compose up",
-    "docker:down": "docker-compose down"
+    "docker:down": "docker-compose down",
+    "vercel-build": "cd frontend && npm install && npm run build"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.4.0",
+    "adm-zip": "^0.5.17",
+    "busboy": "^1.6.0",
+    "csv-parse": "^7.0.0"
   },
   "devDependencies": {
-    "concurrently": "^8.2.1"
+    "@types/adm-zip": "^0.5.8",
+    "@types/busboy": "^1.5.4",
+    "@vercel/node": "^3.0.0",
+    "concurrently": "^8.2.1",
+    "typescript": "^5.3.3"
   },
   "keywords": [
     "TTB",
@@ -28,7 +42,7 @@
     "compliance",
     "label",
     "OCR",
-    "Azure"
+    "Gemini"
   ],
   "author": "Your Team",
   "license": "MIT"

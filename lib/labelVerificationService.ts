@@ -1,0 +1,364 @@
+import { LabelData, FieldVerification, VerificationResult } from './types';
+
+/**
+ * Label Verification Service - handles parsing and verification of label data
+ * Adapted for Vercel serverless functions (import path changed to ./types)
+ */
+export class LabelVerificationService {
+  /**
+   * Parse extracted text to identify label fields
+   * @param extractedText Raw OCR text
+   * @returns Parsed label data
+   */
+  parseExtractedText(extractedText: string): LabelData {
+    const parsedJsonData = this.parseJsonExtractedText(extractedText);
+    if (parsedJsonData) {
+      return parsedJsonData;
+    }
+
+    const labelData: LabelData = {};
+    const lines = extractedText.split('\n').filter(line => line.trim());
+
+    // Simple parsing logic - can be enhanced with ML/pattern matching
+    for (const line of lines) {
+      const trimmed = line.trim();
+
+      // Brand name (typically first prominent text)
+      if (!labelData.brandName && trimmed.length > 3 && trimmed.length < 50) {
+        labelData.brandName = trimmed;
+      }
+
+      // Alcohol content
+      if (!labelData.alcoholContent && /(\d+\.?\d*)\s*(%|Alc|VOL|Proof)/i.test(trimmed)) {
+        labelData.alcoholContent = trimmed;
+      }
+
+      // Net contents (volume)
+      if (!labelData.netContents && /(mL|ml|oz|L|liter)/i.test(trimmed)) {
+        labelData.netContents = trimmed;
+      }
+
+      // Government warning (key phrase search)
+      if (!labelData.governmentWarning && /GOVERNMENT WARNING/i.test(trimmed)) {
+        labelData.governmentWarning = trimmed;
+      }
+
+      // Class/Type
+      if (!labelData.classType && /(bourbon|whiskey|vodka|gin|rum|wine|beer|spirit)/i.test(trimmed)) {
+        labelData.classType = trimmed;
+      }
+    }
+
+    return labelData;
+  }
+
+  /**
+   * Parse the structured JSON response returned by the OCR prompt.
+   * @param extractedText Raw Gemini response text
+   * @returns Parsed label data, or undefined when the response is not JSON
+   */
+  private parseJsonExtractedText(extractedText: string): LabelData | undefined {
+    const jsonText = this.extractJsonObject(extractedText);
+
+    if (!jsonText) {
+      return undefined;
+    }
+
+    try {
+      const parsed = JSON.parse(jsonText) as Record<string, unknown>;
+
+      return {
+        brandName: this.getExtractedJsonValue(parsed, 'BRAND_NAME', 'brandName'),
+        classType: this.getExtractedJsonValue(parsed, 'CLASS_TYPE', 'classType'),
+        alcoholContent: this.getExtractedJsonValue(parsed, 'ALCOHOL_CONTENT', 'alcoholContent'),
+        netContents: this.getExtractedJsonValue(parsed, 'NET_CONTENTS', 'netContents'),
+        bottlerName: this.getExtractedJsonValue(parsed, 'BOTTLER_NAME', 'bottlerName'),
+        bottlerAddress: this.getExtractedJsonValue(parsed, 'BOTTLER_ADDRESS', 'bottlerAddress'),
+        countryOfOrigin: this.getExtractedJsonValue(parsed, 'COUNTRY_OF_ORIGIN', 'countryOfOrigin'),
+        governmentWarning: this.getExtractedJsonValue(parsed, 'GOVERNMENT_WARNING', 'governmentWarning')
+      };
+    } catch (error) {
+      console.warn('Failed to parse OCR JSON response:', error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Extract a JSON object even when the model wraps it in markdown fences.
+   */
+  private extractJsonObject(text: string): string | undefined {
+    const trimmed = text.trim();
+    const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    const candidate = fencedMatch ? fencedMatch[1].trim() : trimmed;
+
+    if (candidate.startsWith('{') && candidate.endsWith('}')) {
+      return candidate;
+    }
+
+    const firstBrace = candidate.indexOf('{');
+    const lastBrace = candidate.lastIndexOf('}');
+
+    if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+      return undefined;
+    }
+
+    return candidate.slice(firstBrace, lastBrace + 1);
+  }
+
+  /**
+   * Convert OCR JSON values into optional LabelData values.
+   */
+  private normalizeExtractedValue(value: unknown): string | undefined {
+    if (typeof value !== 'string') {
+      return undefined;
+    }
+
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === 'NOT_FOUND') {
+      return undefined;
+    }
+
+    return trimmed;
+  }
+
+  /**
+   * Read a field from model JSON, allowing exact prompt keys and camelCase variants.
+   */
+  private getExtractedJsonValue(parsed: Record<string, unknown>, ...keys: string[]): string | undefined {
+    const normalizedEntries = Object.entries(parsed).reduce<Record<string, unknown>>((acc, [key, value]) => {
+      acc[this.normalizeJsonKey(key)] = value;
+      return acc;
+    }, {});
+
+    for (const key of keys) {
+      const value = parsed[key] ?? normalizedEntries[this.normalizeJsonKey(key)];
+      const normalizedValue = this.normalizeExtractedValue(value);
+
+      if (normalizedValue) {
+        return normalizedValue;
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Normalize model JSON keys for resilient matching.
+   */
+  private normalizeJsonKey(key: string): string {
+    return key.toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
+  /**
+   * Verify extracted data against application data
+   */
+  verifyData(extractedData: LabelData, applicationData: LabelData): FieldVerification[] {
+    const verifications: FieldVerification[] = [];
+    const fields = [
+      'brandName',
+      'classType',
+      'alcoholContent',
+      'netContents',
+      'bottlerName',
+      'bottlerAddress',
+      'countryOfOrigin',
+      'governmentWarning'
+    ];
+
+    for (const field of fields) {
+      const expectedValue = applicationData[field];
+      const extractedValue = extractedData[field];
+
+      const verification = this.verifyField(
+        field,
+        expectedValue,
+        extractedValue
+      );
+
+      verifications.push(verification);
+    }
+
+    return verifications;
+  }
+
+  /**
+   * Verify a single field
+   */
+  private verifyField(
+    fieldName: string,
+    expectedValue: string | undefined,
+    extractedValue: string | undefined
+  ): FieldVerification {
+    // If no expected value, skip verification
+    if (!expectedValue) {
+      return {
+        fieldName,
+        extractedValue,
+        isMatch: true,
+        confidence: 0.0,
+        notes: 'No value to verify'
+      };
+    }
+
+    // If no extracted value, it's a mismatch
+    if (!extractedValue) {
+      return {
+        fieldName,
+        expectedValue,
+        extractedValue: undefined,
+        isMatch: false,
+        confidence: 0.0,
+        notes: 'Field not found in image'
+      };
+    }
+
+    // Exact match
+    if (expectedValue === extractedValue) {
+      return {
+        fieldName,
+        expectedValue,
+        extractedValue,
+        isMatch: true,
+        confidence: 1.0
+      };
+    }
+
+    // Fuzzy matching for case-insensitive and punctuation differences
+    const similarity = this.calculateSimilarity(expectedValue, extractedValue);
+    
+    // Government Warning has strictest requirements
+    if (fieldName === 'governmentWarning') {
+      const isMatch = this.verifyGovernmentWarning(expectedValue, extractedValue);
+      return {
+        fieldName,
+        expectedValue,
+        extractedValue,
+        isMatch,
+        confidence: isMatch ? 1.0 : 0.0,
+        notes: 'Government warning must be exact match'
+      };
+    }
+
+    // For other fields, use similarity threshold
+    const threshold = 0.85;
+    const isMatch = similarity >= threshold;
+
+    return {
+      fieldName,
+      expectedValue,
+      extractedValue,
+      isMatch,
+      confidence: similarity,
+      notes: isMatch ? 'Match within acceptable threshold' : 'Values differ'
+    };
+  }
+
+  /**
+   * Calculate string similarity using Levenshtein distance
+   */
+  private calculateSimilarity(str1: string, str2: string): number {
+    const s1 = str1.toLowerCase().replace(/[^\w\s]/g, '');
+    const s2 = str2.toLowerCase().replace(/[^\w\s]/g, '');
+
+    if (s1 === s2) return 1.0;
+
+    const distance = this.levenshteinDistance(s1, s2);
+    const maxLength = Math.max(s1.length, s2.length);
+
+    return 1 - (distance / maxLength);
+  }
+
+  /**
+   * Calculate Levenshtein distance between two strings
+   */
+  private levenshteinDistance(str1: string, str2: string): number {
+    const m = str1.length;
+    const n = str2.length;
+    const dp: number[][] = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
+
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        if (str1[i - 1] === str2[j - 1]) {
+          dp[i][j] = dp[i - 1][j - 1];
+        } else {
+          dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+        }
+      }
+    }
+
+    return dp[m][n];
+  }
+
+  /**
+   * Verify government warning - must be exact match with specific format
+   */
+  private verifyGovernmentWarning(expected: string, extracted: string): boolean {
+    if (!extracted.includes('GOVERNMENT WARNING')) {
+      return false;
+    }
+
+    const requiredPhrases = ['GOVERNMENT WARNING', 'alcoholic'];
+    const hasAllPhrases = requiredPhrases.every(phrase =>
+      extracted.toLowerCase().includes(phrase.toLowerCase())
+    );
+
+    return hasAllPhrases;
+  }
+
+  /**
+   * Calculate overall match percentage
+   */
+  calculateMatchPercentage(verifications: FieldVerification[]): number {
+    const comparableVerifications = verifications.filter(v => v.expectedValue);
+
+    if (comparableVerifications.length === 0) return 0;
+
+    const matchCount = comparableVerifications.filter(v => v.isMatch).length;
+    return (matchCount / comparableVerifications.length) * 100;
+  }
+
+  /**
+   * Determine overall match status
+   */
+  isOverallMatch(verifications: FieldVerification[]): boolean {
+    const criticalFields = ['brandName', 'alcoholContent', 'governmentWarning'];
+    
+    for (const critical of criticalFields) {
+      const verification = verifications.find(v => v.fieldName === critical);
+      if (!verification?.expectedValue || !verification.extractedValue || !verification.isMatch) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Create verification result
+   */
+  createVerificationResult(
+    labelId: string,
+    filename: string,
+    extractedData: LabelData,
+    applicationData: LabelData,
+    processingTime: number
+  ): VerificationResult {
+    const fieldVerifications = this.verifyData(extractedData, applicationData);
+    const matchPercentage = this.calculateMatchPercentage(fieldVerifications);
+    const overallMatch = this.isOverallMatch(fieldVerifications);
+
+    return {
+      labelId,
+      filename,
+      extractedData,
+      fieldVerifications,
+      overallMatch,
+      matchPercentage,
+      processingTime,
+      timestamp: new Date().toISOString()
+    };
+  }
+}

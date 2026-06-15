@@ -1,0 +1,18 @@
+{
+  "rewrites": [
+    { "source": "/api/verification/verify-label", "destination": "/api/verify-label" },
+    { "source": "/api/verification/verify-json", "destination": "/api/verify-json" },
+    { "source": "/api/verification/verify-batch-csv", "destination": "/api/verify-batch-csv" },
+    { "source": "/api/verification/verify-batch", "destination": "/api/verify-batch" },
+    { "source": "/health", "destination": "/api/health" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "functions": {
+    "api/verify-batch-csv.ts": { "maxDuration": 300 },
+    "api/verify-label.ts": { "maxDuration": 60 },
+    "api/verify-json.ts": { "maxDuration": 60 },
+    "api/verify-batch.ts": { "maxDuration": 60 }
+  },
+  "buildCommand": "cd frontend && npm install && NODE_OPTIONS=--openssl-legacy-provider npm run build",
+  "outputDirectory": "frontend/build"
+}
