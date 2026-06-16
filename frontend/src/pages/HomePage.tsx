@@ -289,7 +289,7 @@ const HomePage: React.FC<HomePageProps> = ({ apiEndpoint }) => {
                 <div className="override-section">
                   <h4>Agent Override — Probable Matches</h4>
                   <p className="override-description">
-                    Fields marked as "Probable Match" require agent review. Approve them with a reason to count as verified.
+                    Fields marked as &quot;Probable Match&quot; require agent review. Approve them with a reason to count as verified.
                   </p>
                   <div className="override-form">
                     <select

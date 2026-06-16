@@ -15,6 +15,6 @@
   },
   "framework": null,
   "installCommand": "npm install",
-  "buildCommand": "cd frontend && npm install && NODE_OPTIONS=--openssl-legacy-provider npm run build",
+  "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/build"
 }
