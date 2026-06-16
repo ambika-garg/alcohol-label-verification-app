@@ -199,14 +199,14 @@ export class LabelVerificationService {
    * @param fieldName Name of the field
    * @param expectedValue Value from application
    * @param extractedValue Value from image
-   * @returns Verification result
+   * @returns Verification result with matchTier
    */
   private verifyField(
     fieldName: string,
     expectedValue: string | undefined,
     extractedValue: string | undefined
   ): FieldVerification {
-    // If no expected value, skip verification
+    // If no expected value, skip verification (no matchTier assigned)
     if (!expectedValue) {
       return {
         fieldName,
@@ -228,6 +228,7 @@ export class LabelVerificationService {
           extractedValue: undefined,
           isMatch: false,
           confidence: 0.0,
+          matchTier: 'mismatch',
           notes: 'Government warning not found in image',
           governmentWarningResult: gwResult
         };
@@ -238,12 +239,13 @@ export class LabelVerificationService {
         extractedValue: undefined,
         isMatch: false,
         confidence: 0.0,
+        matchTier: 'mismatch',
         notes: 'Field not found in image'
       };
     }
 
     // Government Warning — always delegate to the dedicated strict validator
-    // (must run before the generic exact-match shortcut so sub-results are always populated)
+    // (must run before the generic match logic so sub-results are always populated)
     if (fieldName === 'governmentWarning') {
       const gwResult = this.governmentWarningValidator.validate(extractedValue);
       return {
@@ -258,32 +260,74 @@ export class LabelVerificationService {
       };
     }
 
-    // Exact match
+    // ── Three-tier matching for all other fields ──
+
+    // Tier 1: Exact match (identical strings)
     if (expectedValue === extractedValue) {
       return {
         fieldName,
         expectedValue,
         extractedValue,
         isMatch: true,
-        confidence: 1.0
+        confidence: 1.0,
+        matchTier: 'exact'
       };
     }
 
-    // Fuzzy matching for case-insensitive and punctuation differences
+    // Normalize both values: lowercase, strip punctuation, collapse whitespace
+    const normalizedExpected = this.normalizeForComparison(expectedValue);
+    const normalizedExtracted = this.normalizeForComparison(extractedValue);
+
+    // Tier 2a: Normalized equality (case, punctuation, whitespace differences only)
+    if (normalizedExpected === normalizedExtracted) {
+      return {
+        fieldName,
+        expectedValue,
+        extractedValue,
+        isMatch: true,
+        confidence: 1.0,
+        matchTier: 'probable',
+        notes: 'Probable match — differs in case, punctuation, or whitespace only'
+      };
+    }
+
+    // Tier 2b: Levenshtein similarity on normalized strings
     const similarity = this.calculateSimilarity(expectedValue, extractedValue);
-
-    // For other fields, use similarity threshold
     const threshold = 0.85;
-    const isMatch = similarity >= threshold;
 
+    if (similarity >= threshold) {
+      return {
+        fieldName,
+        expectedValue,
+        extractedValue,
+        isMatch: true,
+        confidence: similarity,
+        matchTier: 'probable',
+        notes: `Probable match — ${(similarity * 100).toFixed(0)}% similar`
+      };
+    }
+
+    // Tier 3: Mismatch
     return {
       fieldName,
       expectedValue,
       extractedValue,
-      isMatch,
+      isMatch: false,
       confidence: similarity,
-      notes: isMatch ? 'Match within acceptable threshold' : 'Values differ'
+      matchTier: 'mismatch',
+      notes: `Mismatch — ${(similarity * 100).toFixed(0)}% similar`
     };
+  }
+
+  /**
+   * Normalize a string for comparison: lowercase, strip punctuation, collapse whitespace.
+   */
+  private normalizeForComparison(str: string): string {
+    return str
+      .toLowerCase()
+      .replace(/[^\w\s]/g, '')   // strip punctuation
+      .replace(/\s+/g, ' ')      // collapse whitespace
+      .trim();
   }
 
   /**

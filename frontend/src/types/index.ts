@@ -31,12 +31,15 @@ export interface GovernmentWarningResult {
   overallPass: boolean;
 }
 
+export type MatchTier = 'exact' | 'probable' | 'mismatch';
+
 export interface FieldVerification {
   fieldName: string;
   expectedValue?: string;
   extractedValue?: string;
   isMatch: boolean;
   confidence: number;
+  matchTier?: MatchTier;
   notes?: string;
   governmentWarningResult?: GovernmentWarningResult;
 }

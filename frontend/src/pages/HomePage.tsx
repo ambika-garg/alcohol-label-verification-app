@@ -16,6 +16,17 @@ const HomePage: React.FC<HomePageProps> = ({ apiEndpoint }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>('');
   const [result, setResult] = useState<VerificationResult | null>(null);
+  const [overrideField, setOverrideField] = useState('');
+  const [overrideReason, setOverrideReason] = useState('');
+  const [overrides, setOverrides] = useState<Array<{fieldName: string; reason: string}>>([]);
+
+  const handleOverride = () => {
+    if (overrideField && overrideReason.trim()) {
+      setOverrides(prev => [...prev, { fieldName: overrideField, reason: overrideReason.trim() }]);
+      setOverrideField('');
+      setOverrideReason('');
+    }
+  };
   const extractedDataFields: Array<[keyof LabelData, string]> = [
     ['brandName', 'Brand Name'],
     ['classType', 'Class/Type'],
@@ -235,13 +246,21 @@ const HomePage: React.FC<HomePageProps> = ({ apiEndpoint }) => {
                 <tbody>
                   {result.fieldVerifications.map((verification, idx) => (
                     <React.Fragment key={idx}>
-                      <tr
-                        className={!verification.expectedValue ? 'skipped' : verification.isMatch ? 'match' : 'mismatch'}
-                      >
+                      <tr className={
+                        !verification.expectedValue ? 'skipped' :
+                        verification.matchTier === 'exact' ? 'match' :
+                        verification.matchTier === 'probable' ? 'probable-match' :
+                        'mismatch'
+                      }>
                         <td className="field-name">{verification.fieldName}</td>
                         <td>{verification.expectedValue || '-'}</td>
                         <td>{verification.extractedValue || '-'}</td>
-                        <td>{!verification.expectedValue ? 'Skipped' : verification.isMatch ? '✓' : '✗'}</td>
+                        <td className={`match-tier-cell ${verification.matchTier || ''}`}>
+                          {!verification.expectedValue ? 'Skipped' :
+                           verification.matchTier === 'exact' ? '✅ Exact' :
+                           verification.matchTier === 'probable' ? '≈ Probable' :
+                           '❌ Mismatch'}
+                        </td>
                         <td>{!verification.expectedValue ? '-' : `${(verification.confidence * 100).toFixed(0)}%`}</td>
                       </tr>
                       {verification.governmentWarningResult && (
@@ -264,6 +283,55 @@ const HomePage: React.FC<HomePageProps> = ({ apiEndpoint }) => {
                   ))}
                 </tbody>
               </table>
+
+              {/* Agent Override Section for Probable Matches */}
+              {result.fieldVerifications.some(v => v.matchTier === 'probable') && (
+                <div className="override-section">
+                  <h4>Agent Override — Probable Matches</h4>
+                  <p className="override-description">
+                    Fields marked as "Probable Match" require agent review. Approve them with a reason to count as verified.
+                  </p>
+                  <div className="override-form">
+                    <select
+                      value={overrideField}
+                      onChange={(e) => setOverrideField(e.target.value)}
+                      className="override-select"
+                    >
+                      <option value="">Select field to override...</option>
+                      {result.fieldVerifications
+                        .filter(v => v.matchTier === 'probable' && !overrides.find(o => o.fieldName === v.fieldName))
+                        .map(v => (
+                          <option key={v.fieldName} value={v.fieldName}>{v.fieldName}</option>
+                        ))}
+                    </select>
+                    <textarea
+                      value={overrideReason}
+                      onChange={(e) => setOverrideReason(e.target.value)}
+                      placeholder="Required: Enter reason for approving this match..."
+                      className="override-reason"
+                      rows={2}
+                    />
+                    <button
+                      onClick={handleOverride}
+                      disabled={!overrideField || !overrideReason.trim()}
+                      className="override-button"
+                    >
+                      ✓ Approve Match
+                    </button>
+                  </div>
+                  {overrides.length > 0 && (
+                    <div className="overrides-list">
+                      <h5>Approved Overrides</h5>
+                      {overrides.map((o, i) => (
+                        <div key={i} className="override-item">
+                          <span className="override-field">{o.fieldName}</span>
+                          <span className="override-reason-text">{o.reason}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </section>
         )}

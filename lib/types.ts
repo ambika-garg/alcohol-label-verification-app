@@ -14,6 +14,11 @@ export interface LabelData {
 }
 
 /**
+ * Three-tier match classification
+ */
+export type MatchTier = 'exact' | 'probable' | 'mismatch';
+
+/**
  * Represents a field verification result
  */
 export interface FieldVerification {
@@ -22,6 +27,7 @@ export interface FieldVerification {
   extractedValue?: string;
   isMatch: boolean;
   confidence: number;
+  matchTier?: MatchTier;
   notes?: string;
   governmentWarningResult?: GovernmentWarningResult;
 }

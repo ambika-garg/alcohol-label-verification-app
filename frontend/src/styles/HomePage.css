@@ -276,3 +276,129 @@ tr.gov-warning-sub.match {
 tr.gov-warning-sub.mismatch {
   background-color: rgba(231, 76, 60, 0.05);
 }
+
+/* Three-tier match states */
+tr.probable-match {
+  background-color: rgba(243, 156, 18, 0.1);
+  border-left: 3px solid #f39c12;
+}
+
+tr.probable-match:hover {
+  background-color: rgba(243, 156, 18, 0.15);
+}
+
+.match-tier-cell.exact {
+  color: #2ecc71;
+  font-weight: 600;
+}
+
+.match-tier-cell.probable {
+  color: #f39c12;
+  font-weight: 600;
+}
+
+.match-tier-cell.mismatch {
+  color: #e74c3c;
+  font-weight: 600;
+}
+
+/* Agent Override Section */
+.override-section {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  background: rgba(243, 156, 18, 0.08);
+  border: 1px solid rgba(243, 156, 18, 0.3);
+  border-radius: 8px;
+}
+
+.override-section h4 {
+  margin: 0 0 0.5rem 0;
+  color: #f39c12;
+  font-size: 1.05rem;
+}
+
+.override-description {
+  font-size: 0.9em;
+  color: #aaa;
+  margin-bottom: 1rem;
+}
+
+.override-form {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.override-select {
+  padding: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+  min-width: 200px;
+}
+
+.override-reason {
+  flex: 1;
+  min-width: 250px;
+  padding: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.override-button {
+  padding: 0.5rem 1.25rem;
+  background: linear-gradient(135deg, #f39c12, #e67e22);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.2s;
+}
+
+.override-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.override-button:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.overrides-list {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(243, 156, 18, 0.2);
+}
+
+.overrides-list h5 {
+  margin: 0 0 0.5rem 0;
+  color: #f39c12;
+  font-size: 0.9rem;
+}
+
+.override-item {
+  display: flex;
+  gap: 1rem;
+  padding: 0.4rem 0;
+  font-size: 0.9em;
+  align-items: baseline;
+}
+
+.override-field {
+  color: #f39c12;
+  font-weight: 600;
+  min-width: 120px;
+}
+
+.override-reason-text {
+  color: #ccc;
+  font-style: italic;
+}
