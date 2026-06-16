@@ -234,16 +234,33 @@ const HomePage: React.FC<HomePageProps> = ({ apiEndpoint }) => {
                 </thead>
                 <tbody>
                   {result.fieldVerifications.map((verification, idx) => (
-                    <tr
-                      key={idx}
-                      className={!verification.expectedValue ? 'skipped' : verification.isMatch ? 'match' : 'mismatch'}
-                    >
-                      <td className="field-name">{verification.fieldName}</td>
-                      <td>{verification.expectedValue || '-'}</td>
-                      <td>{verification.extractedValue || '-'}</td>
-                      <td>{!verification.expectedValue ? 'Skipped' : verification.isMatch ? '✓' : '✗'}</td>
-                      <td>{!verification.expectedValue ? '-' : `${(verification.confidence * 100).toFixed(0)}%`}</td>
-                    </tr>
+                    <React.Fragment key={idx}>
+                      <tr
+                        className={!verification.expectedValue ? 'skipped' : verification.isMatch ? 'match' : 'mismatch'}
+                      >
+                        <td className="field-name">{verification.fieldName}</td>
+                        <td>{verification.expectedValue || '-'}</td>
+                        <td>{verification.extractedValue || '-'}</td>
+                        <td>{!verification.expectedValue ? 'Skipped' : verification.isMatch ? '✓' : '✗'}</td>
+                        <td>{!verification.expectedValue ? '-' : `${(verification.confidence * 100).toFixed(0)}%`}</td>
+                      </tr>
+                      {verification.governmentWarningResult && (
+                        <>
+                          {verification.governmentWarningResult.subResults.map((sub, subIdx) => (
+                            <tr key={`gw-${idx}-${subIdx}`} className={`gov-warning-sub ${sub.passed ? 'match' : 'mismatch'}`}>
+                              <td className="field-name gov-warning-indent">
+                                {sub.check === 'presence' ? '↳ Presence' :
+                                 sub.check === 'format' ? '↳ Format' :
+                                 '↳ Text Accuracy'}
+                              </td>
+                              <td colSpan={2} className="gov-warning-detail">{sub.details}</td>
+                              <td>{sub.passed ? '✅' : '❌'}</td>
+                              <td>-</td>
+                            </tr>
+                          ))}
+                        </>
+                      )}
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>

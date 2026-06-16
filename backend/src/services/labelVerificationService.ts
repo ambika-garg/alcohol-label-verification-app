@@ -1,9 +1,11 @@
 import { LabelData, FieldVerification, VerificationResult } from '../types';
+import { GovernmentWarningValidator } from './governmentWarningValidator';
 
 /**
  * Label Verification Service - handles parsing and verification of label data
  */
 export class LabelVerificationService {
+  private governmentWarningValidator = new GovernmentWarningValidator();
   /**
    * Parse extracted text to identify label fields
    * @param extractedText Raw OCR text
@@ -217,6 +219,19 @@ export class LabelVerificationService {
 
     // If no extracted value, it's a mismatch
     if (!extractedValue) {
+      // For government warning, still run the validator to produce sub-results
+      if (fieldName === 'governmentWarning') {
+        const gwResult = this.governmentWarningValidator.validate(undefined);
+        return {
+          fieldName,
+          expectedValue,
+          extractedValue: undefined,
+          isMatch: false,
+          confidence: 0.0,
+          notes: 'Government warning not found in image',
+          governmentWarningResult: gwResult
+        };
+      }
       return {
         fieldName,
         expectedValue,
@@ -224,6 +239,22 @@ export class LabelVerificationService {
         isMatch: false,
         confidence: 0.0,
         notes: 'Field not found in image'
+      };
+    }
+
+    // Government Warning — always delegate to the dedicated strict validator
+    // (must run before the generic exact-match shortcut so sub-results are always populated)
+    if (fieldName === 'governmentWarning') {
+      const gwResult = this.governmentWarningValidator.validate(extractedValue);
+      return {
+        fieldName,
+        expectedValue,
+        extractedValue,
+        isMatch: gwResult.subResults.find(s => s.check === 'presence')?.passed === true
+              && gwResult.subResults.find(s => s.check === 'textAccuracy')?.passed === true,
+        confidence: gwResult.overallPass ? 1.0 : 0.0,
+        notes: gwResult.subResults.map(s => `${s.check}: ${s.passed ? '✅' : '❌'}`).join(' | '),
+        governmentWarningResult: gwResult
       };
     }
 
@@ -240,19 +271,6 @@ export class LabelVerificationService {
 
     // Fuzzy matching for case-insensitive and punctuation differences
     const similarity = this.calculateSimilarity(expectedValue, extractedValue);
-    
-    // Government Warning has strictest requirements
-    if (fieldName === 'governmentWarning') {
-      const isMatch = this.verifyGovernmentWarning(expectedValue, extractedValue);
-      return {
-        fieldName,
-        expectedValue,
-        extractedValue,
-        isMatch,
-        confidence: isMatch ? 1.0 : 0.0,
-        notes: 'Government warning must be exact match'
-      };
-    }
 
     // For other fields, use similarity threshold
     const threshold = 0.85;
@@ -314,26 +332,7 @@ export class LabelVerificationService {
     return dp[m][n];
   }
 
-  /**
-   * Verify government warning - must be exact match with specific format
-   * @param expected Expected warning
-   * @param extracted Extracted warning
-   * @returns True if valid government warning format
-   */
-  private verifyGovernmentWarning(expected: string, extracted: string): boolean {
-    // Must contain "GOVERNMENT WARNING" in all caps
-    if (!extracted.includes('GOVERNMENT WARNING')) {
-      return false;
-    }
-
-    // Check if it's the complete warning (contains required text)
-    const requiredPhrases = ['GOVERNMENT WARNING', 'alcoholic'];
-    const hasAllPhrases = requiredPhrases.every(phrase =>
-      extracted.toLowerCase().includes(phrase.toLowerCase())
-    );
-
-    return hasAllPhrases;
-  }
+  // Government warning verification is now handled by GovernmentWarningValidator
 
   /**
    * Calculate overall match percentage

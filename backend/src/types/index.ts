@@ -23,6 +23,34 @@ export interface FieldVerification {
   isMatch: boolean;
   confidence: number;
   notes?: string;
+  governmentWarningResult?: GovernmentWarningResult;
+}
+
+/**
+ * Sub-result for a single aspect of the government warning check
+ */
+export interface GovernmentWarningSubResult {
+  check: 'presence' | 'format' | 'textAccuracy';
+  passed: boolean;
+  details: string;
+}
+
+/**
+ * Rendering attributes extracted from the label image by the OCR/vision model
+ */
+export interface WarningFormatAttributes {
+  isBold: boolean | null;           // null = could not determine
+  relativeFontSize: string | null;  // e.g. "small", "normal", "large"
+  isAllCaps: boolean | null;
+}
+
+/**
+ * Complete government warning validation result with three sub-checks
+ */
+export interface GovernmentWarningResult {
+  subResults: GovernmentWarningSubResult[];
+  formatAttributes: WarningFormatAttributes | null;
+  overallPass: boolean;
 }
 
 /**

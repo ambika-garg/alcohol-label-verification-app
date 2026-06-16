@@ -250,3 +250,29 @@ textarea {
     max-width: none;
   }
 }
+
+/* Government Warning Sub-Results */
+.gov-warning-sub td {
+  padding-left: 2rem;
+  font-size: 0.9em;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.gov-warning-indent {
+  padding-left: 2.5rem !important;
+  font-style: italic;
+  color: #b0b0b0;
+}
+
+.gov-warning-detail {
+  font-size: 0.85em;
+  color: #ccc;
+}
+
+tr.gov-warning-sub.match {
+  background-color: rgba(46, 204, 113, 0.05);
+}
+
+tr.gov-warning-sub.mismatch {
+  background-color: rgba(231, 76, 60, 0.05);
+}

@@ -13,6 +13,24 @@ export interface LabelData {
   governmentWarning?: string;
 }
 
+export interface GovernmentWarningSubResult {
+  check: 'presence' | 'format' | 'textAccuracy';
+  passed: boolean;
+  details: string;
+}
+
+export interface WarningFormatAttributes {
+  isBold: boolean | null;
+  relativeFontSize: string | null;
+  isAllCaps: boolean | null;
+}
+
+export interface GovernmentWarningResult {
+  subResults: GovernmentWarningSubResult[];
+  formatAttributes: WarningFormatAttributes | null;
+  overallPass: boolean;
+}
+
 export interface FieldVerification {
   fieldName: string;
   expectedValue?: string;
@@ -20,6 +38,7 @@ export interface FieldVerification {
   isMatch: boolean;
   confidence: number;
   notes?: string;
+  governmentWarningResult?: GovernmentWarningResult;
 }
 
 export interface VerificationResult {

@@ -1,10 +1,11 @@
 import { LabelData, FieldVerification, VerificationResult } from './types';
+import { GovernmentWarningValidator } from './governmentWarningValidator';
 
 /**
  * Label Verification Service - handles parsing and verification of label data
- * Adapted for Vercel serverless functions (import path changed to ./types)
  */
 export class LabelVerificationService {
+  private governmentWarningValidator = new GovernmentWarningValidator();
   /**
    * Parse extracted text to identify label fields
    * @param extractedText Raw OCR text
@@ -85,6 +86,8 @@ export class LabelVerificationService {
 
   /**
    * Extract a JSON object even when the model wraps it in markdown fences.
+   * @param text Raw model output
+   * @returns JSON object text, or undefined when no object is found
    */
   private extractJsonObject(text: string): string | undefined {
     const trimmed = text.trim();
@@ -107,6 +110,8 @@ export class LabelVerificationService {
 
   /**
    * Convert OCR JSON values into optional LabelData values.
+   * @param value Raw JSON field value
+   * @returns String value, or undefined for missing/NOT_FOUND values
    */
   private normalizeExtractedValue(value: unknown): string | undefined {
     if (typeof value !== 'string') {
@@ -123,6 +128,9 @@ export class LabelVerificationService {
 
   /**
    * Read a field from model JSON, allowing exact prompt keys and camelCase variants.
+   * @param parsed Parsed model response object
+   * @param keys Candidate keys to read
+   * @returns Normalized field value
    */
   private getExtractedJsonValue(parsed: Record<string, unknown>, ...keys: string[]): string | undefined {
     const normalizedEntries = Object.entries(parsed).reduce<Record<string, unknown>>((acc, [key, value]) => {
@@ -144,6 +152,8 @@ export class LabelVerificationService {
 
   /**
    * Normalize model JSON keys for resilient matching.
+   * @param key JSON object key
+   * @returns Lowercase alphanumeric key
    */
   private normalizeJsonKey(key: string): string {
     return key.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -151,6 +161,9 @@ export class LabelVerificationService {
 
   /**
    * Verify extracted data against application data
+   * @param extractedData Data extracted from image
+   * @param applicationData Data from application submission
+   * @returns Verification results for each field
    */
   verifyData(extractedData: LabelData, applicationData: LabelData): FieldVerification[] {
     const verifications: FieldVerification[] = [];
@@ -183,6 +196,10 @@ export class LabelVerificationService {
 
   /**
    * Verify a single field
+   * @param fieldName Name of the field
+   * @param expectedValue Value from application
+   * @param extractedValue Value from image
+   * @returns Verification result
    */
   private verifyField(
     fieldName: string,
@@ -202,6 +219,19 @@ export class LabelVerificationService {
 
     // If no extracted value, it's a mismatch
     if (!extractedValue) {
+      // For government warning, still run the validator to produce sub-results
+      if (fieldName === 'governmentWarning') {
+        const gwResult = this.governmentWarningValidator.validate(undefined);
+        return {
+          fieldName,
+          expectedValue,
+          extractedValue: undefined,
+          isMatch: false,
+          confidence: 0.0,
+          notes: 'Government warning not found in image',
+          governmentWarningResult: gwResult
+        };
+      }
       return {
         fieldName,
         expectedValue,
@@ -209,6 +239,22 @@ export class LabelVerificationService {
         isMatch: false,
         confidence: 0.0,
         notes: 'Field not found in image'
+      };
+    }
+
+    // Government Warning — always delegate to the dedicated strict validator
+    // (must run before the generic exact-match shortcut so sub-results are always populated)
+    if (fieldName === 'governmentWarning') {
+      const gwResult = this.governmentWarningValidator.validate(extractedValue);
+      return {
+        fieldName,
+        expectedValue,
+        extractedValue,
+        isMatch: gwResult.subResults.find(s => s.check === 'presence')?.passed === true
+              && gwResult.subResults.find(s => s.check === 'textAccuracy')?.passed === true,
+        confidence: gwResult.overallPass ? 1.0 : 0.0,
+        notes: gwResult.subResults.map(s => `${s.check}: ${s.passed ? '✅' : '❌'}`).join(' | '),
+        governmentWarningResult: gwResult
       };
     }
 
@@ -225,19 +271,6 @@ export class LabelVerificationService {
 
     // Fuzzy matching for case-insensitive and punctuation differences
     const similarity = this.calculateSimilarity(expectedValue, extractedValue);
-    
-    // Government Warning has strictest requirements
-    if (fieldName === 'governmentWarning') {
-      const isMatch = this.verifyGovernmentWarning(expectedValue, extractedValue);
-      return {
-        fieldName,
-        expectedValue,
-        extractedValue,
-        isMatch,
-        confidence: isMatch ? 1.0 : 0.0,
-        notes: 'Government warning must be exact match'
-      };
-    }
 
     // For other fields, use similarity threshold
     const threshold = 0.85;
@@ -255,8 +288,12 @@ export class LabelVerificationService {
 
   /**
    * Calculate string similarity using Levenshtein distance
+   * @param str1 First string
+   * @param str2 Second string
+   * @returns Similarity score (0-1)
    */
   private calculateSimilarity(str1: string, str2: string): number {
+    // Normalize strings for comparison
     const s1 = str1.toLowerCase().replace(/[^\w\s]/g, '');
     const s2 = str2.toLowerCase().replace(/[^\w\s]/g, '');
 
@@ -270,6 +307,9 @@ export class LabelVerificationService {
 
   /**
    * Calculate Levenshtein distance between two strings
+   * @param str1 First string
+   * @param str2 Second string
+   * @returns Edit distance
    */
   private levenshteinDistance(str1: string, str2: string): number {
     const m = str1.length;
@@ -292,24 +332,12 @@ export class LabelVerificationService {
     return dp[m][n];
   }
 
-  /**
-   * Verify government warning - must be exact match with specific format
-   */
-  private verifyGovernmentWarning(expected: string, extracted: string): boolean {
-    if (!extracted.includes('GOVERNMENT WARNING')) {
-      return false;
-    }
-
-    const requiredPhrases = ['GOVERNMENT WARNING', 'alcoholic'];
-    const hasAllPhrases = requiredPhrases.every(phrase =>
-      extracted.toLowerCase().includes(phrase.toLowerCase())
-    );
-
-    return hasAllPhrases;
-  }
+  // Government warning verification is now handled by GovernmentWarningValidator
 
   /**
    * Calculate overall match percentage
+   * @param verifications Field verifications
+   * @returns Match percentage (0-100)
    */
   calculateMatchPercentage(verifications: FieldVerification[]): number {
     const comparableVerifications = verifications.filter(v => v.expectedValue);
@@ -322,6 +350,8 @@ export class LabelVerificationService {
 
   /**
    * Determine overall match status
+   * @param verifications Field verifications
+   * @returns True if all critical fields match
    */
   isOverallMatch(verifications: FieldVerification[]): boolean {
     const criticalFields = ['brandName', 'alcoholContent', 'governmentWarning'];
@@ -338,6 +368,12 @@ export class LabelVerificationService {
 
   /**
    * Create verification result
+   * @param labelId Label ID
+   * @param filename Filename
+   * @param extractedData Extracted data
+   * @param applicationData Application data
+   * @param processingTime Time taken to process
+   * @returns Verification result
    */
   createVerificationResult(
     labelId: string,
